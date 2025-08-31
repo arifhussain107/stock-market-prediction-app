@@ -1,10 +1,10 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, make_response
 
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return '''
+    html_content = '''
     <!DOCTYPE html>
     <html>
     <head>
@@ -70,33 +70,43 @@ def home():
     </body>
     </html>
     '''
+    
+    response = make_response(html_content)
+    response.headers['Content-Type'] = 'text/html; charset=utf-8'
+    return response
 
 @app.route('/health')
 def health():
-    return jsonify({
+    response = jsonify({
         'status': 'healthy',
         'message': 'Stock Prediction App is running successfully on Vercel!',
         'deployment': 'successful',
         'platform': 'vercel'
     })
+    response.headers['Content-Type'] = 'application/json'
+    return response
 
 @app.route('/api/demo')
 def demo():
-    return jsonify({
+    response = jsonify({
         'message': 'Stock Prediction App is working perfectly on Vercel!',
         'status': 'success',
         'deployment': 'successful'
     })
+    response.headers['Content-Type'] = 'application/json'
+    return response
 
 @app.route('/api/status')
 def status():
-    return jsonify({
+    response = jsonify({
         'status': 'success',
         'app_name': 'Stock Market Prediction AI',
         'deployment': 'vercel',
         'status': 'running',
         'message': 'All systems operational'
     })
+    response.headers['Content-Type'] = 'application/json'
+    return response
 
 if __name__ == '__main__':
     app.run(debug=True)
