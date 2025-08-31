@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Prediction AI</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 40px; color: white; }
+        .header h1 { font-size: 3rem; margin-bottom: 10px; }
+        .main-content { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .card { background: white; border-radius: 20px; padding: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; }
+        .form-control { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; }
+        .btn { background: #667eea; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-size: 16px; cursor: pointer; width: 100%; }
+        .btn:hover { background: #5a6fd8; }
+        .progress { margin-top: 20px; display: none; }
+        .progress-bar { width: 100%; height: 20px; background: #ddd; border-radius: 10px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #667eea; width: 0%; transition: width 0.3s; }
+        .results { margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px; display: none; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 10px; margin-top: 20px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Stock Prediction AI</h1>
+            <p>Professional LSTM Neural Network for Stock Price Forecasting</p>
+        </div>
+
+        <div class="main-content">
+            <div class="card">
+                <h2>⚙️ Configuration</h2>
+                <form id="predictionForm">
+                    <div class="form-group">
+                        <label for="ticker">Stock Symbol</label>
+                        <input type="text" id="ticker" class="form-control" placeholder="e.g., AAPL, MSFT, TSLA" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="startDate">Start Date</label>
+                        <input type="date" id="startDate" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="mode">Prediction Mode</label>
+                        <select id="mode" class="form-control" required>
+                            <option value="quick">Quick Test (20 epochs)</option>
+                            <option value="custom">Custom</option>
+                            <option value="production">Production (500 epochs)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="hiddenDim">Hidden Dimensions</label>
+                        <input type="number" id="hiddenDim" class="form-control" value="64" min="32" max="512" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="numEpochs">Training Epochs</label>
+                        <input type="number" id="numEpochs" class="form-control" value="100" min="20" max="1000" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="learningRate">Learning Rate</label>
+                        <input type="number" id="learningRate" class="form-control" value="0.001" min="0.0001" max="0.01" step="0.0001" required>
+                    </div>
+
+                    <button type="submit" class="btn" id="submitBtn">🚀 Start Prediction</button>
+                </form>
+
+                <div class="progress" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <p id="statusMessage" style="text-align: center; margin-top: 10px;">Initializing...</p>
+                </div>
+
+                <div class="error" id="errorMessage"></div>
+            </div>
+
+            <div class="card">
+                <h2>📊 Results</h2>
+                <div id="resultsContainer">
+                    <p style="text-align: center; color: #666; margin-top: 50px;">
+                        Configure your prediction settings and click "Start Prediction" to begin
+                    </p>
+                </div>
+
+                <div class="results" id="results">
+                    <h3>✅ Prediction Results</h3>
+                    <p><strong>Stock Symbol:</strong> <span id="resultTicker">-</span></p>
+                    <p><strong>Training RMSE:</strong> <span id="trainRMSE">-</span></p>
+                    <p><strong>Test RMSE:</strong> <span id="testRMSE">-</span></p>
+                    <p><strong>Execution Time:</strong> <span id="executionTime">-</span> seconds</p>
+                    <a href="#" class="btn" id="downloadPlot" style="display: none; text-align: center; text-decoration: none;">
+                        📥 Download Results Plot
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Set default date to 2 years ago
+        document.getElementById('startDate').value = new Date(Date.now() - 2 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+        // Mode change handler
+        document.getElementById('mode').addEventListener('change', function() {
+            const mode = this.value;
+            const numEpochs = document.getElementById('numEpochs');
+            const hiddenDim = document.getElementById('hiddenDim');
+            
+            if (mode === 'quick') {
+                numEpochs.value = 20;
+                hiddenDim.value = 32;
+            } else if (mode === 'production') {
+                numEpochs.value = 500;
+                hiddenDim.value = 128;
+            }
+        });
+
+        // Form submission
+        document.getElementById('predictionForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const errorMessage = document.getElementById('errorMessage');
+            const results = document.getElementById('results');
+            
+            // Reset UI
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Starting...';
+            progressContainer.style.display = 'block';
+            errorMessage.style.display = 'none';
+            results.style.display = 'none';
+            
+            // Prepare data
+            const formData = {
+                ticker: document.getElementById('ticker').value.toUpperCase(),
+                start_date: document.getElementById('startDate').value,
+                mode: document.getElementById('mode').value,
+                hidden_dim: document.getElementById('hiddenDim').value,
+                num_epochs: document.getElementById('numEpochs').value,
+                learning_rate: document.getElementById('learningRate').value
+            };
+            
+            try {
+                // Start prediction
+                const response = await fetch('/api/start_prediction', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
+                
+                if (!response.ok) throw new Error('Failed to start prediction');
+                
+                // Start monitoring progress
+                monitorProgress();
+                
+            } catch (error) {
+                showError(error.message);
+                resetUI();
+            }
+        });
+
+        async function monitorProgress() {
+            const progressFill = document.getElementById('progressFill');
+            const statusMessage = document.getElementById('statusMessage');
+            const results = document.getElementById('results');
+            
+            let pollCount = 0;
+            const maxPolls = 300; // Maximum 5 minutes of polling
+            
+            while (pollCount < maxPolls) {
+                try {
+                    const response = await fetch('/api/job_status');
+                    const status = await response.json();
+                    
+                    progressFill.style.width = status.progress + '%';
+                    statusMessage.textContent = status.message;
+                    
+                    if (status.status === 'completed') {
+                        showResults(status.results);
+                        break;
+                    } else if (status.status === 'error') {
+                        showError(status.error);
+                        break;
+                    }
+                    
+                    // Adaptive polling: faster at start, slower during training
+                    let pollInterval = 1000; // Default 1 second
+                    if (status.progress > 50 && status.progress < 85) {
+                        pollInterval = 2000; // 2 seconds during training
+                    } else if (status.progress > 85) {
+                        pollInterval = 500; // 0.5 seconds near completion
+                    }
+                    
+                    await new Promise(resolve => setTimeout(resolve, pollInterval));
+                    pollCount++;
+                    
+                } catch (error) {
+                    showError('Failed to monitor progress');
+                    break;
+                }
+            }
+            
+            if (pollCount >= maxPolls) {
+                showError('Prediction timed out. Please check the server logs.');
+            }
+        }
+
+        function showResults(results) {
+            document.getElementById('resultTicker').textContent = results.ticker;
+            document.getElementById('trainRMSE').textContent = results.train_rmse.toFixed(4);
+            document.getElementById('testRMSE').textContent = results.test_rmse.toFixed(4);
+            
+            if (results.execution_time) {
+                document.getElementById('executionTime').textContent = results.execution_time;
+            }
+            
+            document.getElementById('downloadPlot').href = `/api/download_plot/${results.ticker}`;
+            document.getElementById('downloadPlot').style.display = 'inline-block';
+            
+            document.getElementById('results').style.display = 'block';
+            resetUI();
+        }
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function resetUI() {
+            const submitBtn = document.getElementById('submitBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = '🚀 Start Prediction';
+            progressContainer.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
