@@ -1,1 +1,1 @@
-# No external dependencies required - using native Python HTTP server
+flask>=2.0.0
