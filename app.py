@@ -277,6 +277,11 @@ def run_prediction_with_progress(config):
     
     return results
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for Vercel"""
+    return jsonify({'status': 'healthy', 'message': 'Stock Prediction App is running'})
+
 @app.route('/')
 def index():
     """Main page"""
@@ -645,14 +650,14 @@ def start_cache_cleanup():
     cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
     cleanup_thread.start()
 
+# Create necessary directories for production
+os.makedirs('static', exist_ok=True)
+os.makedirs('templates', exist_ok=True)
+
+# Start cache cleanup
+start_cache_cleanup()
+
 if __name__ == '__main__':
-    # Create necessary directories
-    os.makedirs('static', exist_ok=True)
-    os.makedirs('templates', exist_ok=True)
-    
-    # Start cache cleanup
-    start_cache_cleanup()
-    
     print("🚀 Starting Stock Prediction Web App...")
     print("📱 Open your browser and go to: http://localhost:5000")
     print("🔄 The app will automatically reload when you make changes")
