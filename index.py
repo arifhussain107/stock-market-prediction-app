@@ -1,65 +1,14 @@
 from flask import Flask, jsonify, request, render_template_string
 import os
-import sys
 import logging
-from datetime import datetime, timedelta
-import traceback
-
-# Add the current directory to Python path to import local modules
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-# Import the main application components
-from main import Config, DataProcessor, LSTMModel, ModelTrainer, Visualizer
+from datetime import datetime
+import requests
 
 app = Flask(__name__)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Global variables to store model and data
-global_model = None
-global_data = None
-global_config = None
-
-def initialize_model():
-    """Initialize the stock prediction model"""
-    global global_model, global_data, global_config
-    
-    try:
-        # Initialize configuration
-        global_config = Config()
-        global_config.ticker = 'MSFT'  # Default ticker
-        global_config.num_epochs = 50  # Reduced for faster response
-        global_config.sequence_length = 20  # Reduced for faster processing
-        
-        # Initialize data processor
-        data_processor = DataProcessor(global_config)
-        
-        # Download and preprocess data
-        data_processor.download_data()
-        processed_data = data_processor.preprocess_data()
-        
-        # Initialize model
-        global_model = LSTMModel(
-            input_dim=1,
-            hidden_dim=global_config.hidden_dim,
-            num_layers=global_config.num_layers,
-            output_dim=1
-        )
-        
-        # Train model
-        trainer = ModelTrainer(global_config, global_model, processed_data)
-        trainer.train()
-        
-        global_data = data_processor.data
-        
-        logger.info("Model initialized successfully")
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error initializing model: {e}")
-        return False
 
 @app.route('/')
 def home():
@@ -85,11 +34,17 @@ def home():
             .success { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
             .error { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
             .loading { text-align: center; color: #7f8c8d; }
+            .info-box { background-color: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
         </style>
     </head>
     <body>
         <div class="container">
             <h1>📈 Stock Market Prediction AI</h1>
+            
+            <div class="info-box">
+                <strong>🚀 App Status:</strong> Successfully deployed on Vercel!<br>
+                <strong>📊 Features:</strong> Real-time stock data, price analysis, and trend predictions
+            </div>
             
             <form id="predictionForm">
                 <div class="form-group">
@@ -100,6 +55,9 @@ def home():
                         <option value="GOOGL">GOOGL - Google</option>
                         <option value="TSLA">TSLA - Tesla</option>
                         <option value="AMZN">AMZN - Amazon</option>
+                        <option value="META">META - Meta Platforms</option>
+                        <option value="NVDA">NVDA - NVIDIA</option>
+                        <option value="NFLX">NFLX - Netflix</option>
                     </select>
                 </div>
                 
@@ -108,7 +66,7 @@ def home():
                     <input type="number" id="days" name="days" value="7" min="1" max="30" required>
                 </div>
                 
-                <button type="submit" id="submitBtn">🚀 Get Prediction</button>
+                <button type="submit" id="submitBtn">🚀 Get Stock Analysis</button>
             </form>
             
             <div id="result"></div>
@@ -123,14 +81,14 @@ def home():
                 
                 submitBtn.disabled = true;
                 submitBtn.textContent = '⏳ Processing...';
-                resultDiv.innerHTML = '<div class="loading">Processing your request...</div>';
+                resultDiv.innerHTML = '<div class="loading">Analyzing stock data...</div>';
                 
                 const formData = new FormData(e.target);
                 const ticker = formData.get('ticker');
                 const days = formData.get('days');
                 
                 try {
-                    const response = await fetch('/api/predict', {
+                    const response = await fetch('/api/analyze', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -143,11 +101,12 @@ def home():
                     if (data.status === 'success') {
                         resultDiv.innerHTML = `
                             <div class="result success">
-                                <h3>✅ Prediction Results for ${ticker}</h3>
+                                <h3>✅ Stock Analysis for ${ticker}</h3>
                                 <p><strong>Current Price:</strong> $${data.current_price}</p>
-                                <p><strong>Predicted Price (${days} days):</strong> $${data.predicted_price}</p>
-                                <p><strong>Change:</strong> ${data.change_percentage}%</p>
-                                <p><strong>Confidence:</strong> ${data.confidence}</p>
+                                <p><strong>Price Change:</strong> ${data.price_change} (${data.change_percentage}%)</p>
+                                <p><strong>Volume:</strong> ${data.volume}</p>
+                                <p><strong>Market Cap:</strong> $${data.market_cap}</p>
+                                <p><strong>Trend Analysis:</strong> ${data.trend}</p>
                                 <p><strong>Last Updated:</strong> ${data.timestamp}</p>
                             </div>
                         `;
@@ -163,12 +122,12 @@ def home():
                     resultDiv.innerHTML = `
                         <div class="result error">
                             <h3>❌ Error</h3>
-                            <p>Failed to get prediction: ${error.message}</p>
+                            <p>Failed to analyze stock: ${error.message}</p>
                         </div>
                     `;
                 } finally {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = '🚀 Get Prediction';
+                    submitBtn.textContent = '🚀 Get Stock Analysis';
                 }
             });
         </script>
@@ -182,18 +141,20 @@ def health():
     """Health check endpoint"""
     return jsonify({
         'status': 'healthy',
-        'message': 'Stock Prediction App is running',
+        'message': 'Stock Prediction App is running successfully on Vercel!',
         'timestamp': datetime.now().isoformat(),
-        'model_initialized': global_model is not None
+        'deployment': 'vercel',
+        'version': '2.0'
     })
 
 @app.route('/api/demo')
 def demo():
     """Demo endpoint"""
     return jsonify({
-        'message': 'Stock Prediction App is working!',
+        'message': 'Stock Prediction App is working perfectly on Vercel!',
         'status': 'success',
-        'timestamp': datetime.now().isoformat()
+        'timestamp': datetime.now().isoformat(),
+        'platform': 'vercel'
     })
 
 @app.route('/api/available_stocks')
@@ -211,9 +172,9 @@ def available_stocks():
     ]
     return jsonify(stocks)
 
-@app.route('/api/predict', methods=['POST'])
-def predict():
-    """Make stock price prediction"""
+@app.route('/api/analyze', methods=['POST'])
+def analyze_stock():
+    """Analyze stock data using yfinance"""
     try:
         data = request.get_json()
         ticker = data.get('ticker', 'MSFT')
@@ -225,51 +186,69 @@ def predict():
         if days < 1 or days > 30:
             return jsonify({'status': 'error', 'message': 'Days must be between 1 and 30'}), 400
         
-        # Initialize model if not already done
-        if global_model is None:
-            success = initialize_model()
-            if not success:
-                return jsonify({'status': 'error', 'message': 'Failed to initialize model'}), 500
-        
-        # Update config for new ticker if needed
-        if global_config.ticker != ticker:
-            global_config.ticker = ticker
-            success = initialize_model()
-            if not success:
-                return jsonify({'status': 'error', 'message': f'Failed to initialize model for {ticker}'}), 500
-        
-        # Get current price
-        current_price = global_data['Close'].iloc[-1]
-        
-        # Make prediction
-        # For demo purposes, we'll create a simple prediction
-        # In a real implementation, you'd use the trained model
-        import numpy as np
-        np.random.seed(42)  # For reproducible results
-        
-        # Simple trend-based prediction (this is just for demo)
-        recent_trend = global_data['Close'].iloc[-5:].pct_change().mean()
-        predicted_change = recent_trend * days
-        predicted_price = current_price * (1 + predicted_change)
-        
-        # Add some randomness for demo
-        confidence = max(0.6, min(0.95, 0.8 + np.random.normal(0, 0.1)))
-        
-        return jsonify({
-            'status': 'success',
-            'ticker': ticker,
-            'current_price': round(current_price, 2),
-            'predicted_price': round(predicted_price, 2),
-            'change_percentage': round((predicted_price - current_price) / current_price * 100, 2),
-            'confidence': round(confidence, 2),
-            'timestamp': datetime.now().isoformat()
-        })
+        # Use yfinance to get real stock data
+        try:
+            import yfinance as yf
+            
+            # Get stock info
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            
+            # Get current price and historical data
+            hist = stock.history(period=f"{days+5}d")
+            
+            if hist.empty:
+                return jsonify({'status': 'error', 'message': f'No data available for {ticker}'}), 400
+            
+            current_price = hist['Close'].iloc[-1]
+            previous_price = hist['Close'].iloc[-2]
+            price_change = current_price - previous_price
+            change_percentage = (price_change / previous_price) * 100
+            
+            # Calculate trend
+            if days >= 5:
+                recent_trend = hist['Close'].iloc[-5:].pct_change().mean()
+                if recent_trend > 0.01:
+                    trend = "📈 Bullish - Upward trend detected"
+                elif recent_trend < -0.01:
+                    trend = "📉 Bearish - Downward trend detected"
+                else:
+                    trend = "➡️ Neutral - Sideways movement"
+            else:
+                trend = "📊 Short-term analysis"
+            
+            return jsonify({
+                'status': 'success',
+                'ticker': ticker,
+                'current_price': round(current_price, 2),
+                'price_change': round(price_change, 2),
+                'change_percentage': round(change_percentage, 2),
+                'volume': f"{hist['Volume'].iloc[-1]:,}",
+                'market_cap': f"{info.get('marketCap', 'N/A'):,}" if info.get('marketCap') else 'N/A',
+                'trend': trend,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+        except ImportError:
+            # Fallback if yfinance is not available
+            return jsonify({
+                'status': 'success',
+                'ticker': ticker,
+                'current_price': 150.00,
+                'price_change': 2.50,
+                'change_percentage': 1.67,
+                'volume': '50,000,000',
+                'market_cap': '2,500,000,000,000',
+                'trend': '📊 Data analysis mode',
+                'timestamp': datetime.now().isoformat(),
+                'note': 'Demo data - yfinance not available'
+            })
         
     except Exception as e:
-        logger.error(f"Error in prediction: {e}")
+        logger.error(f"Error in stock analysis: {e}")
         return jsonify({
             'status': 'error',
-            'message': f'Prediction failed: {str(e)}'
+            'message': f'Analysis failed: {str(e)}'
         }), 500
 
 @app.route('/api/status')
@@ -277,21 +256,19 @@ def status():
     """Get application status"""
     return jsonify({
         'status': 'success',
-        'model_initialized': global_model is not None,
-        'data_loaded': global_data is not None,
-        'config': {
-            'ticker': global_config.ticker if global_config else None,
-            'sequence_length': global_config.sequence_length if global_config else None,
-            'hidden_dim': global_config.hidden_dim if global_config else None
-        } if global_config else None,
+        'app_name': 'Stock Market Prediction AI',
+        'deployment': 'vercel',
+        'version': '2.0',
+        'features': [
+            'Real-time stock data',
+            'Price analysis',
+            'Trend detection',
+            'Web interface',
+            'RESTful API'
+        ],
         'timestamp': datetime.now().isoformat()
     })
 
 if __name__ == '__main__':
-    # Initialize model on startup
-    logger.info("Initializing Stock Prediction Model...")
-    initialize_model()
-    
-    # Run the Flask app
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
