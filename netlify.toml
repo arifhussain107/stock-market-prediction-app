@@ -1,9 +1,10 @@
 [build]
-  publish = "."
-  command = ""
+  publish = "static_deploy"
+  command = "mkdir -p static_deploy && cp index.html static_deploy/ && cp -r static/* static_deploy/ 2>/dev/null || true"
 
 [build.environment]
-  NODE_VERSION = "18"
+  # Remove Node.js requirement since this is a Python project
+  # NODE_VERSION = "18"
 
 [[redirects]]
   from = "/*"
